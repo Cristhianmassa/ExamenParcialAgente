@@ -6,14 +6,18 @@
 from dataclasses import dataclass   # para crear clases simples con menos codigo
 import random                       # para valores aleatorios
 
-# Zonas del entorno
+# Zonas del entorno - Definiciones
 ZV = 0  # Zona Vacía (bloqueada o impenetrable)
 ZL = 1  # Zona Libre (transitable) o donde se colocan los agentes
+ROBOT = 3
+MONSTRUO = 4
 
 #Diccionario para asociar zona y símbolo
 SIMBOLOS = {
     ZV: "█",   # bloqueado
-    ZL: "░"    # libre
+    ZL: "░",   # libre
+    3: "R",    # Robot
+    4: "M"     # Mounstro
 }
 
 # Características generales del entorno energético.
@@ -23,6 +27,8 @@ class ParamEntorno:
     N: int          # Tamaño del cubo
     Pfree: float    # % de Zonas Libres dentro del INTERIOR (no cuenta el borde)
     Psoft: float    # % de Zonas Vacías dentro del INTERIOR (no cuenta el borde)
+    Nrobot: int     # nro de robots
+    Nmonstruos: int # nro de monstruos
     seed: int | None = None  # opcional, para reproducibilidad
 
 #Validaciones
@@ -112,3 +118,56 @@ def rellenar_cubo(cubo, p: ParamEntorno):
             for z in range(N):
                 cubo[x][y][z] = tipos[indice]
                 indice += 1
+
+# =====================================================
+# Construcción completa del entorno
+# =====================================================
+
+def construir_entorno(p: ParamEntorno):
+    """
+    Crea el entorno energético completo.
+    1. Valida los parámetros.
+    2. Crea el cubo vacío.
+    3. Rellena con zonas energéticas según Pfree y Psoft.
+    Devuelve el cubo 3D final.
+    """
+    _validar_parametros(p)
+    cubo = crear_cubo_vacio(p.N)
+    rellenar_cubo(cubo, p)
+    return cubo
+
+# =====================================================
+# Colocar los agentes en el entorno
+# =====================================================
+
+def colocar_agentes(cubo, p: ParamEntorno):
+    """
+    Coloca los robots y monstruos en posiciones aleatorias del entorno.
+    Solo pueden ubicarse en celdas ZL (zonas libres).
+    """
+    if p.seed is not None:
+        random.seed(p.seed + 1)  # se suma 1 para no repetir el patrón de zonas
+
+    N = p.N
+    posiciones_libres = [(x, y, z) for x in range(N)
+                                      for y in range(N)
+                                      for z in range(N)
+                                      if cubo[x][y][z] == ZL]
+
+    total_libres = len(posiciones_libres)
+    total_agentes = p.Nrobot + p.Nmonstruos
+
+    if total_agentes > total_libres:
+        raise ValueError("No hay suficientes zonas libres para ubicar todos los agentes.")
+
+    random.shuffle(posiciones_libres)
+
+    # Colocar robots
+    for _ in range(p.Nrobot):
+        x, y, z = posiciones_libres.pop()
+        cubo[x][y][z] = ROBOT
+
+    # Colocar monstruos
+    for _ in range(p.Nmonstruos):
+        x, y, z = posiciones_libres.pop()
+        cubo[x][y][z] = MONSTRUO
