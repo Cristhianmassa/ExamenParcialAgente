@@ -55,5 +55,60 @@ def crear_cubo_vacio(N: int):
     Inicialmente todas las celdas se marcan como ZV (Zona Vacía).
     """
     # 'ZV' o representa una zona bloqueada (0)
-    cubo = [[[ZV for _ in range(N)] for _ in range(N)] for _ in range(N)]
+    cubo = []
+    for x in range(N):
+        capa_x = []
+        for y in range(N):
+            fila_y = []
+            for z in range(N):
+                fila_y.append(ZV)
+            capa_x.append(fila_y)
+        cubo.append(capa_x)
+
     return cubo
+
+# =====================================================
+# visualización del entorno
+# =====================================================
+
+def imprimir_capas(cubo):
+    """
+    Muestra el entorno por capas de profundidad (eje Z).
+    Cada capa Z se imprime como una cuadrícula 2D.
+    """
+    N = len(cubo)
+    for z in range(N):
+        print(f"\nCapa Z = {z}")
+        for y in range(N):
+            fila = ""
+            for x in range(N):
+                valor = cubo[x][y][z]
+                fila += SIMBOLOS[valor]  # usa el símbolo visual (█ o ░)
+            print(fila)
+
+def rellenar_cubo(cubo, p: ParamEntorno):
+    """
+    Asigna aleatoriamente Zonas Libres (ZL) y Zonas Vacías (ZV)
+    dentro del cubo según los porcentajes definidos en los parámetros.
+    """
+    if p.seed is not None:
+        random.seed(p.seed)  # Permite reproducir el mismo entorno
+
+    N = p.N
+    total_celdas = N ** 3
+
+    # Cantidades de cada tipo de zona
+    n_libres = int(total_celdas * p.Pfree)
+    n_vacias = total_celdas - n_libres
+
+    # Crear una lista con todos los tipos de zonas a asignar
+    tipos = [ZL] * n_libres + [ZV] * n_vacias
+    random.shuffle(tipos)  # Mezclar aleatoriamente
+
+    # Asignar las zonas en el cubo
+    indice = 0
+    for x in range(N):
+        for y in range(N):
+            for z in range(N):
+                cubo[x][y][z] = tipos[indice]
+                indice += 1
