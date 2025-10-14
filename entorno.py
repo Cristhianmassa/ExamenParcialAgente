@@ -171,3 +171,30 @@ def colocar_agentes(cubo, p: ParamEntorno):
     for _ in range(p.Nmonstruos):
         x, y, z = posiciones_libres.pop()
         cubo[x][y][z] = MONSTRUO
+
+# =====================================================
+# Ver las posiciones de los agentes
+# =====================================================
+
+def obtener_posiciones_agentes(cubo):
+    """
+    Devuelve las posiciones (x, y, z) de todos los agentes en el entorno.
+    Retorna un diccionario con listas separadas por tipo.
+    """
+    posiciones = {
+        "robots": [],
+        "monstruos": []
+    }
+
+    N = len(cubo)
+
+    for x in range(N):
+        for y in range(N):
+            for z in range(N):
+                valor = cubo[x][y][z]
+                if valor == 3:  # ROBOT
+                    posiciones["robots"].append((x, y, z))
+                elif valor == 4:  # MONSTRUO
+                    posiciones["monstruos"].append((x, y, z))
+
+    return posiciones

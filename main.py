@@ -4,7 +4,8 @@
 #cubo[0][0][0] = 0 (esquina izquierda, arriba) x,y,z
 #cubo[4][0][0] = 0 (esquina derecha, arriba)
 
-from entorno import ParamEntorno, _validar_parametros,  imprimir_capas, construir_entorno,colocar_agentes
+from entorno import ParamEntorno, _validar_parametros, imprimir_capas, construir_entorno, colocar_agentes, \
+    obtener_posiciones_agentes
 
 from agente import Agente
 
@@ -27,3 +28,11 @@ print(f"Valor inicial de la primera celda [0][0][0]: {entorno[0][0][0]}")
 
 print(f"\n🌌 Entorno generado aleatoriamente (N={params.N})")
 imprimir_capas(entorno)
+
+# Mostrar posiciones
+posiciones = obtener_posiciones_agentes(entorno)
+
+print("\n📍 Posiciones de los agentes:")
+print("Robots:", posiciones["robots"])
+print("Monstruos:", posiciones["monstruos"])
+
