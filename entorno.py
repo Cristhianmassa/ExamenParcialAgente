@@ -1,200 +1,179 @@
 # =====================================================
-# ENTORNO ENERGÉTICO
-# Configuración y validaciones básicas
+# entorno.py — Mundo N×N×N y dinámica de monstruos
 # =====================================================
+from dataclasses import dataclass
+import random
 
-from dataclasses import dataclass   # para crear clases simples con menos codigo
-import random                       # para valores aleatorios
-
-# Zonas del entorno - Definiciones
-ZV = 0  # Zona Vacía (bloqueada o impenetrable)
-ZL = 1  # Zona Libre (transitable) o donde se colocan los agentes
+# ----- Constantes de celdas -----
+ZV = 0   # Zona Vacía (bloqueo total)
+ZL = 1   # Zona Libre
 ROBOT = 3
 MONSTRUO = 4
 
-#Diccionario para asociar zona y símbolo
 SIMBOLOS = {
-    ZV: "█",   # bloqueado
-    ZL: "░",   # libre
-    3: "R",    # Robot
-    4: "M"     # Mounstro
+    ZV: "█",
+    ZL: "░",
+    ROBOT: "R",
+    MONSTRUO: "M",
 }
 
-# Características generales del entorno energético.
-
+# ----- Parámetros del entorno -----
 @dataclass
 class ParamEntorno:
-    N: int          # Tamaño del cubo
-    Pfree: float    # % de Zonas Libres dentro del INTERIOR (no cuenta el borde)
-    Psoft: float    # % de Zonas Vacías dentro del INTERIOR (no cuenta el borde)
-    Nrobot: int     # nro de robots
-    Nmonstruos: int # nro de monstruos
-    seed: int | None = None  # opcional, para reproducibilidad
+    N: int
+    Pfree: float
+    Psoft: float
+    Nrobot: int = 0
+    Nmonstruos: int = 0
+    seed: int | None = None
 
-#Validaciones
+    # Dinámica de monstruos
+    K_monstruo: int = 0      # cada cuántas iteraciones se evalúa movimiento (0=desactivado)
+    p_monstruo: float = 0.0  # prob. de moverse cuando “toca” (0..1)
+
+
+# ----- Validación -----
 def _validar_parametros(p: ParamEntorno):
-    """
-    Verifica que los parámetros del entorno sean coherentes.
-    """
-    # N debe ser al menos 2 (para tener un volumen significativo)
-    assert p.N >= 2, "N debe ser >= 2 para definir un entorno cúbico válido."
-
-    # Los porcentajes deben estar dentro del rango permitido
-    assert 0 <= p.Pfree <= 1 and 0 <= p.Psoft <= 1, "Pfree y Psoft deben estar en [0,1]."
-
-    # La suma de Pfree y Psoft debe ser 1.0 (100% del espacio se reparte entre ambas zonas)
+    assert p.N >= 3, "N debe ser >= 3."
+    assert 0 <= p.Pfree <= 1 and 0 <= p.Psoft <= 1, "Pfree y Psoft en [0,1]."
     suma = p.Pfree + p.Psoft
     assert abs(suma - 1.0) < 1e-9, f"Pfree + Psoft debe ser 1.0, pero es {suma}"
+    assert p.Nrobot >= 0 and p.Nmonstruos >= 0, "Cantidades de agentes no negativas."
+    assert 0.0 <= p.p_monstruo <= 1.0, "p_monstruo en [0,1]."
+    assert isinstance(p.K_monstruo, int) and p.K_monstruo >= 0, "K_monstruo entero >= 0."
 
-    # Mensaje de confirmación
-    print(f"✅ Parámetros validados correctamente: N={p.N}, Pfree={p.Pfree}, Psoft={p.Psoft}")
 
-# =====================================================
-# ENTORNO ENERGÉTICO
-# Crear la estructura del cubo energético
-# =====================================================
-
+# ----- Construcción y utilidades -----
 def crear_cubo_vacio(N: int):
-    """
-    Crea una estructura tridimensional (N×N×N) donde cada celda
-    representa una unidad energética del entorno.
-    Inicialmente todas las celdas se marcan como ZV (Zona Vacía).
-    """
-    # 'ZV' o representa una zona bloqueada (0)
-    cubo = []
-    for x in range(N):
-        capa_x = []
-        for y in range(N):
-            fila_y = []
-            for z in range(N):
-                fila_y.append(ZV)
-            capa_x.append(fila_y)
-        cubo.append(capa_x)
-
-    return cubo
-
-# =====================================================
-# visualización del entorno
-# =====================================================
-
-def imprimir_capas(cubo):
-    """
-    Muestra el entorno por capas de profundidad (eje Z).
-    Cada capa Z se imprime como una cuadrícula 2D.
-    """
-    N = len(cubo)
-    for z in range(N):
-        print(f"\nCapa Z = {z}")
-        for y in range(N):
-            fila = ""
-            for x in range(N):
-                valor = cubo[x][y][z]
-                fila += SIMBOLOS[valor]  # usa el símbolo visual (█ o ░)
-            print(fila)
+    return [[[ZL for _z in range(N)] for _y in range(N)] for _x in range(N)]
 
 def rellenar_cubo(cubo, p: ParamEntorno):
-    """
-    Asigna aleatoriamente Zonas Libres (ZL) y Zonas Vacías (ZV)
-    dentro del cubo según los porcentajes definidos en los parámetros.
-    """
+    """Rellena aleatoriamente con ZL / ZV según Pfree/Psoft."""
     if p.seed is not None:
-        random.seed(p.seed)  # Permite reproducir el mismo entorno
-
-    N = p.N
-    total_celdas = N ** 3
-
-    # Cantidades de cada tipo de zona
-    n_libres = int(total_celdas * p.Pfree)
-    n_vacias = total_celdas - n_libres
-
-    # Crear una lista con todos los tipos de zonas a asignar
-    tipos = [ZL] * n_libres + [ZV] * n_vacias
-    random.shuffle(tipos)  # Mezclar aleatoriamente
-
-    # Asignar las zonas en el cubo
-    indice = 0
+        random.seed(p.seed)
+    N = len(cubo)
     for x in range(N):
         for y in range(N):
             for z in range(N):
-                cubo[x][y][z] = tipos[indice]
-                indice += 1
-
-# =====================================================
-# Construcción completa del entorno
-# =====================================================
+                cubo[x][y][z] = ZL if random.random() < p.Pfree else ZV
 
 def construir_entorno(p: ParamEntorno):
-    """
-    Crea el entorno energético completo.
-    1. Valida los parámetros.
-    2. Crea el cubo vacío.
-    3. Rellena con zonas energéticas según Pfree y Psoft.
-    Devuelve el cubo 3D final.
-    """
     _validar_parametros(p)
     cubo = crear_cubo_vacio(p.N)
     rellenar_cubo(cubo, p)
     return cubo
 
-# =====================================================
-# Colocar los agentes en el entorno
-# =====================================================
+def es_coord_valida(N: int, x: int, y: int, z: int) -> bool:
+    return 0 <= x < N and 0 <= y < N and 0 <= z < N
+
+def vecinos_6(x: int, y: int, z: int):
+    return [
+        (x+1, y, z), (x-1, y, z),
+        (x, y+1, z), (x, y-1, z),
+        (x, y, z+1), (x, y, z-1),
+    ]
+
+def obtener_posiciones(cubo, valor: int):
+    N = len(cubo)
+    out = []
+    for x in range(N):
+        for y in range(N):
+            for z in range(N):
+                if cubo[x][y][z] == valor:
+                    out.append((x, y, z))
+    return out
+
+def celdas_libres(cubo):
+    return obtener_posiciones(cubo, ZL)
 
 def colocar_agentes(cubo, p: ParamEntorno):
-    """
-    Coloca los robots y monstruos en posiciones aleatorias del entorno.
-    Solo pueden ubicarse en celdas ZL (zonas libres).
-    """
+    """Coloca Nrobot y Nmonstruos en celdas ZL aleatorias (sin superposición)."""
     if p.seed is not None:
-        random.seed(p.seed + 1)  # se suma 1 para no repetir el patrón de zonas
+        random.seed(p.seed + 1)  # pequeño offset para distribución distinta
 
-    N = p.N
-    posiciones_libres = [(x, y, z) for x in range(N)
-                                      for y in range(N)
-                                      for z in range(N)
-                                      if cubo[x][y][z] == ZL]
+    libres = celdas_libres(cubo)
+    random.shuffle(libres)
 
-    total_libres = len(posiciones_libres)
-    total_agentes = p.Nrobot + p.Nmonstruos
-
-    if total_agentes > total_libres:
-        raise ValueError("No hay suficientes zonas libres para ubicar todos los agentes.")
-
-    random.shuffle(posiciones_libres)
+    necesarios = p.Nrobot + p.Nmonstruos
+    if len(libres) < necesarios:
+        raise ValueError("No hay suficientes Zonas Libres para colocar todos los agentes.")
 
     # Colocar robots
     for _ in range(p.Nrobot):
-        x, y, z = posiciones_libres.pop()
+        x, y, z = libres.pop()
         cubo[x][y][z] = ROBOT
 
     # Colocar monstruos
     for _ in range(p.Nmonstruos):
-        x, y, z = posiciones_libres.pop()
+        x, y, z = libres.pop()
         cubo[x][y][z] = MONSTRUO
 
-# =====================================================
-# Ver las posiciones de los agentes
-# =====================================================
 
-def obtener_posiciones_agentes(cubo):
+# ----- Impresión -----
+def imprimir_capas(cubo):
+    """Imprime el cubo por capas de Z (z=0 arriba)."""
+    N = len(cubo)
+    for z in range(N):
+        print(f"z = {z}")
+        for y in range(N):
+            fila = []
+            for x in range(N):
+                v = cubo[x][y][z]
+                fila.append(SIMBOLOS.get(v, "?"))
+            print(" ".join(fila))
+        print()
+
+
+# ----- Dinámica de monstruos -----
+def mover_monstruos(cubo, p: ParamEntorno, iteracion: int):
     """
-    Devuelve las posiciones (x, y, z) de todos los agentes en el entorno.
-    Retorna un diccionario con listas separadas por tipo.
+    Cada K_monstruo iteraciones, cada monstruo intenta moverse con probabilidad p_monstruo
+    a una celda adyacente válida (no ZV). Si el destino tiene MONSTRUO, se fusionan (queda 1).
+    *No* implementamos autosuicidio en ROBOT (pendiente de confirmación).
     """
-    posiciones = {
-        "robots": [],
-        "monstruos": []
-    }
+    if p.K_monstruo <= 0 or p.p_monstruo <= 0.0:
+        return
+    if iteracion % p.K_monstruo != 0:
+        return
 
     N = len(cubo)
+    monstruos = obtener_posiciones(cubo, MONSTRUO)
+    random.shuffle(monstruos)
 
-    for x in range(N):
-        for y in range(N):
-            for z in range(N):
-                valor = cubo[x][y][z]
-                if valor == 3:  # ROBOT
-                    posiciones["robots"].append((x, y, z))
-                elif valor == 4:  # MONSTRUO
-                    posiciones["monstruos"].append((x, y, z))
+    for (x, y, z) in monstruos:
+        if cubo[x][y][z] != MONSTRUO:
+            continue
+        if random.random() >= p.p_monstruo:
+            continue
 
-    return posiciones
+        candidatos = []
+        for nx, ny, nz in vecinos_6(x, y, z):
+            if not es_coord_valida(N, nx, ny, nz):
+                continue
+            destino = cubo[nx][ny][nz]
+            if destino == ZV:
+                continue  # no entra a ZV
+            # Permitimos ZL (mover) y MONSTRUO (fusionar). ROBOT por ahora se evita.
+            if destino == ROBOT:
+                continue
+            candidatos.append((nx, ny, nz, destino))
+
+        if not candidatos:
+            continue
+
+        nx, ny, nz, destino = random.choice(candidatos)
+
+        # Deja libre su celda actual
+        cubo[x][y][z] = ZL
+
+        if destino == MONSTRUO:
+            # fusión: queda un monstruo
+            cubo[nx][ny][nz] = MONSTRUO
+        else:
+            # movimiento normal a ZL
+            cubo[nx][ny][nz] = MONSTRUO
+
+
+def step_entorno(cubo, p: ParamEntorno, iteracion: int):
+    """Avanza el mundo una iteración (por ahora solo monstruos)."""
+    mover_monstruos(cubo, p, iteracion)
